@@ -447,5 +447,20 @@
     });
   });
 </script>
+
+<!-- Виджет «Сообщения сообщества» ВКонтакте: кнопка чата в углу сайта.
+     Пишет прямо в сообщения группы, там отвечает бот.
+     Работает, только если в настройках группы включён виджет сообщений
+     и в «Разрешённые домены» добавлен адрес сайта. -->
+<div id="vk_community_messages"></div>
+<script src="https://vk.ru/js/api/openapi.js?169"></script>
+<script>
+  try {
+    VK.Widgets.CommunityMessages('vk_community_messages', 241709571, {
+      expanded: 0,
+      tooltipButtonText: 'Есть вопрос? Напишите нам'
+    });
+  } catch (e) { /* ВК недоступен — на сайте остаются обычные ссылки на чат */ }
+</script>
 </body>
 </html>
