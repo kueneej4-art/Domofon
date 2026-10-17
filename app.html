@@ -180,6 +180,17 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .toast b { display: block; font-size: 14px; }
 .toast span { font-size: 13px; color: var(--muted-dark); }
 .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+.ap-card { display:flex; align-items:center; gap:12px; width:100%; text-align:left; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:14px 16px; cursor:pointer; font:inherit; color:inherit; }
+.ap-card .ico { flex:none; width:40px; height:40px; border-radius:12px; display:grid; place-items:center; }
+.ap-card .ico svg { width:20px; height:20px; }
+.ap-card .grow { flex:1; min-width:0; }
+.ap-card .t { font-weight:800; }
+.days { display:flex; flex-wrap:wrap; gap:8px; }
+.days button { min-width:52px; padding:10px 12px; border-radius:12px; border:1.5px solid var(--line); background:var(--card); font:inherit; font-weight:700; cursor:pointer; color:inherit; }
+.days button[aria-pressed="true"] { border-color: var(--accent); background: rgba(230,126,34,.1); }
+.bankform { border:1px dashed var(--line); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+.bankform .row2 { display:flex; gap:10px; }
+.bankform .row2 > * { flex:1; min-width:0; }
 </style>
 
 <div class="stage">
@@ -238,6 +249,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       { id: 'З-2207', svc: 'Ремонт / диагностика', text: 'Трубка не открывает дверь, гудок есть', d: '2026-10-06', step: 1, photo: null }
     ] }
   };
+  Object.keys(ACCOUNTS).forEach(function (k) { ACCOUNTS[k].autopay = { enabled: false, day: 5, max_amount: 1000, card_mask: null }; });
   var SERVICES = ['Ремонт / диагностика', 'Изготовление ключей', 'Установка видеопанели', 'Обслуживание домофона', 'Договор для УК/ТСЖ', 'Другое'];
   var STEPS = ['Принята', 'Мастер назначен', 'Мастер выехал', 'Выполнена'];
   var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
@@ -416,7 +428,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           var isPay = o.sign === '-';
           return { d: iso, t: isPay ? 'pay' : 'charge', label: o.kind === 'Начисление' ? 'Обслуживание домофона, ' + MONTHS_N[+o.date.slice(4, 6) - 1] : o.kind, a: o.amount };
         });
-        var acc = { no: ac.account, name: ac.fio, address: 'г. Ижевск, ' + ac.address, phone: ac.phone || 'не указан', ops: ops, requests: [], debtStart: 0, tariff: ac.tariff, real: true, token: tok,
+        var acc = { no: ac.account, name: ac.fio, address: 'г. Ижевск, ' + ac.address, phone: ac.phone || 'не указан', ops: ops, requests: [], debtStart: 0, tariff: ac.tariff, real: true, token: tok, autopay: ac.autopay || { enabled: false, day: 5, max_amount: 1000, card_mask: null },
           lastPay: ac.last_payment ? { d: ac.last_payment.date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3') } : null };
         var realDebt = ac.debt > 0 ? ac.debt : -ac.prepaid;
         acc._base = 0; acc._base = debt(acc) - realDebt;
@@ -453,6 +465,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         (d > 0 ? '<button class="btn btn-primary" data-act="pay">Оплатить ' + rub(d) + '</button>'
                : '<button class="btn btn-ghost" style="color:#F5F6F8;border-color:#2B2F3A" data-act="pay">Внести аванс</button>') +
       '</section>' +
+      autopayCard(a) +
       '<div class="quick">' +
         '<button data-act="newreq"><span class="ico o">' + ICON.req + '</span>Вызвать мастера</button>' +
         '<button data-act="keys"><span class="ico b">' + ICON.key + '</span>Заказать ключ</button>' +
@@ -462,6 +475,19 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       '<section class="card"><div class="row" style="margin-bottom:10px"><b>Последние операции</b><button class="linkbtn" data-tab-go="hist">Вся история</button></div>' +
         '<div class="list">' + a.ops.slice(0, 3).map(opRow).join('') + '</div></section>' +
       '<section class="card addr"><span class="ico b" style="background:var(--blue-tint);color:var(--blue)">' + ICON.pin + '</span><div><b>' + esc(a.address) + '</b><div class="small muted">Ижевск · обслуживание по договору с УК</div></div></section>';
+  }
+
+  function autopayCard(a) {
+    var ap = a.autopay || {};
+    return '<button class="ap-card" data-act="autopay"><span class="ico b">' + ICON.card + '</span>' +
+      '<span class="grow"><span class="t">Автоплатёж</span><br><span class="small muted">' +
+      (ap.enabled ? 'Карта ' + esc(ap.card_mask || '') + ' · ' + ap.day + '-го числа, до ' + rub(ap.max_amount) : 'Долг будет оплачиваться сам, раз в месяц') + '</span></span>' +
+      (ap.enabled ? '<span class="chip ok">вкл</span>' : '<span class="chip info">выкл</span>') + '</button>';
+  }
+  function nextDate(day) {
+    var t = new Date(), d = new Date(t.getFullYear(), t.getMonth(), day);
+    if (d <= t) d = new Date(t.getFullYear(), t.getMonth() + 1, day);
+    return d.getDate() + ' ' + MONTHS[d.getMonth()];
   }
 
   function opRow(o) {
@@ -502,6 +528,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       '</div></section>' +
       '<section class="card"><div class="list">' +
         '<div class="item"><div><div class="t">Уведомления о заявках</div><div class="s">Мастер назначен, выехал, работа выполнена</div></div><span class="chip ok">вкл</span></div>' +
+        '<button class="item" data-act="autopay" style="width:100%;background:none;border:0;padding-left:0;padding-right:0;font:inherit;color:inherit;text-align:left;cursor:pointer"><div><div class="t">Автоплатёж</div><div class="s">' + (a.autopay && a.autopay.enabled ? a.autopay.day + '-го числа, карта ' + esc(a.autopay.card_mask || '') : 'Не подключён') + '</div></div><span class="chip ' + (a.autopay && a.autopay.enabled ? 'ok">вкл' : 'info">выкл') + '</span></button>' +
         '<div class="item"><div><div class="t">Напоминание об оплате</div><div class="s">5-го числа, если есть долг</div></div><span class="chip ok">вкл</span></div>' +
       '</div></section>' +
       '<section class="card"><div class="t" style="font-weight:800">Служба поддержки</div><div class="num" style="font-size:18px;font-weight:800;margin-top:4px">+7 (3412) 30-60-70</div><div class="small muted">пн–пт 09:00–17:00 · ул. Молодёжная, 91</div></section>' +
@@ -557,6 +584,46 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           (n.err ? '<div class="error" role="alert">' + esc(n.err) + '</div>' : '') +
           '<button class="btn btn-primary" data-act="sendreq">Отправить заявку</button>';
       }
+    } else if (S.sheet === 'autopay') {
+      var ap = a.autopay, f = S.ap;
+      var head = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Автоплатёж</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>';
+      var settings =
+        '<div class="field"><label>День списания</label><div class="days">' + [1, 5, 10, 15, 20, 25].map(function (d) {
+          return '<button type="button" data-day="' + d + '" aria-pressed="' + (f.day === d) + '">' + d + '</button>'; }).join('') + '</div></div>' +
+        '<div class="field"><label for="ap-max">Не списывать больше</label><div class="amount-wrap"><input class="input num" id="ap-max" inputmode="numeric" value="' + f.max + '"><span>₽</span></div>' +
+          '<div class="small muted">Если долг больше лимита, спишем лимит, а остаток — в следующем месяце.</div></div>';
+      if (f.step === 'done') {
+        inner = '<div class="success-mark">' + ICON.check + '</div>' +
+          '<h2 class="h1" style="text-align:center;font-size:20px">' + (ap.enabled ? 'Автоплатёж подключён' : 'Автоплатёж отключён') + '</h2>' +
+          (ap.enabled ? '<div class="receipt"><div class="row"><span>Карта</span><b class="num">' + esc(ap.card_mask) + '</b></div>' +
+            '<div class="row"><span>Ближайшее списание</span><b>' + nextDate(ap.day) + '</b></div>' +
+            '<div class="row"><span>Лимит</span><b class="num">' + rub(ap.max_amount) + '</b></div></div>' +
+            '<p class="small muted" style="margin:0">За день до списания придёт уведомление с суммой. Отключить можно в любой момент.</p>'
+            : '<p class="muted" style="margin:0;text-align:center">Карта отвязана, списаний больше не будет.</p>') +
+          '<button class="btn btn-dark" data-act="close">Готово</button>';
+      } else if (f.step === 'bank' || f.step === 'busy') {
+        inner = head +
+          '<p class="muted" style="margin:0">Это страница банка. Для привязки карты спишем и сразу вернём 1 ₽. Данные карты видит только банк, в приложении они не хранятся.</p>' +
+          '<div class="bankform" aria-label="Учебная форма банка"><div class="small muted">Страница банка · учебный режим</div>' +
+            '<input class="input num" id="bk-pan" inputmode="numeric" placeholder="Номер карты" value="2200 0000 0000 4242">' +
+            '<div class="row2"><input class="input num" placeholder="ММ/ГГ" value="12/29"><input class="input num" placeholder="CVC" value="123"></div></div>' +
+          (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
+          '<button class="btn btn-primary" data-act="ap-bankpay"' + (f.step === 'busy' ? ' disabled' : '') + '>' + (f.step === 'busy' ? '<span class="spinner" aria-hidden="true"></span>Привязываем карту…' : 'Привязать карту') + '</button>' +
+          '<p class="small muted" style="margin:0">Тестовый режим: деньги не списываются.</p>';
+      } else if (ap.enabled) {
+        inner = head +
+          '<div class="receipt"><div class="row"><span>Карта</span><b class="num">' + esc(ap.card_mask) + '</b></div>' +
+            '<div class="row"><span>Ближайшее списание</span><b>' + nextDate(ap.day) + '</b></div>' +
+            '<div class="row"><span>Сумма</span><b>долг на этот день</b></div></div>' +
+          settings + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
+          '<button class="btn btn-primary" data-act="ap-save">Сохранить</button>' +
+          '<button class="btn btn-ghost" data-act="ap-off">Отключить автоплатёж</button>';
+      } else {
+        inner = head +
+          '<p class="muted" style="margin:0">Раз в месяц спишем с карты сумму долга по лицевому счёту <b class="num">' + esc(S.accNo) + '</b>. Нет долга — ничего не списываем. За день до списания пришлём уведомление.</p>' +
+          settings + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
+          '<button class="btn btn-primary" data-act="ap-bind">Подключить и привязать карту</button>';
+      }
     } else if (S.sheet === 'call') {
       inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Позвонить</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
         '<div class="card"><div class="small muted">Диспетчерская</div><div class="num" style="font-size:24px;font-weight:800;font-family:var(--display)">+7 (3412) 30-60-70</div><div class="small muted">пн–пт 09:00–17:00</div></div>' +
@@ -590,6 +657,9 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     app.querySelectorAll('[data-method]').forEach(function (b) { b.addEventListener('click', function () { readAmount(); S.pay.method = b.dataset.method; render(); }); });
     var amt = document.getElementById('pay-amount');
     if (amt) amt.addEventListener('input', function () { amt.value = amt.value.replace(/\D/g, '').slice(0, 6); });
+    app.querySelectorAll('[data-day]').forEach(function (b) { b.addEventListener('click', function () { readAp(); S.ap.day = +b.dataset.day; S.ap.err = ''; render(); }); });
+    var apmax = document.getElementById('ap-max');
+    if (apmax) apmax.addEventListener('input', function () { apmax.value = apmax.value.replace(/\D/g, '').slice(0, 5); });
     app.querySelectorAll('[data-svc]').forEach(function (b) { b.addEventListener('click', function () { readReq(); S.newReq.svc = b.dataset.svc; S.newReq.err = ''; render(); }); });
     var file = document.getElementById('req-photo');
     if (file) file.addEventListener('change', function () {
@@ -601,6 +671,18 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     });
   }
   function readAmount() { var el = document.getElementById('pay-amount'); if (el) S.pay.amount = +(el.value || 0); }
+  function readAp() { var el = document.getElementById('ap-max'); if (el && S.ap) S.ap.max = +(el.value || 0); }
+  function apCall(body) {
+    return api('/api/autopay', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + S.acc.token }, body: JSON.stringify(body) })
+      .then(function (j) { if (j._status !== 200) throw new Error(j.error === 'binding_failed' ? 'Банк не подтвердил привязку карты.' : 'Не получилось. Попробуйте позже.'); return j; });
+  }
+  function apValid() {
+    readAp();
+    if (!S.ap.max || S.ap.max < 50) { S.ap.err = 'Лимит — от 50 ₽.'; render(); return false; }
+    if (S.ap.max > 50000) { S.ap.err = 'Лимит — не больше 50 000 ₽.'; render(); return false; }
+    S.ap.err = ''; return true;
+  }
+  function apApply(st) { var ap = S.acc.autopay; ap.enabled = st.enabled; ap.day = st.day; ap.max_amount = st.max_amount; ap.card_mask = st.card_mask; }
   function readReq() { var el = document.getElementById('req-text'); if (el) S.newReq.text = el.value; }
 
   function act(name) {
@@ -612,6 +694,19 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       if (!S.pay.amount || S.pay.amount < 1) { S.pay.err = 'Введите сумму от 1 ₽.'; return render(); }
       if (S.pay.amount > 50000) { S.pay.err = 'За один раз можно оплатить до 50 000 ₽.'; return render(); }
       S.pay.err = ''; S.pay.state = 'busy'; render();
+      if (a.real) {
+        var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.token };
+        api('/api/pay', { method: 'POST', headers: h, body: JSON.stringify({ amount: S.pay.amount }) }).then(function (j) {
+          if (j._status !== 200) throw new Error('Не удалось создать платёж. Попробуйте позже.');
+          if (j.url) { location.href = j.url; return; }
+          return api('/api/pay/confirm', { method: 'POST', headers: h, body: JSON.stringify({ order: j.order }) }).then(function (c) {
+            if (!c.paid) throw new Error('Банк не подтвердил оплату.');
+            a.ops.unshift({ d: today(), t: 'pay', label: S.pay.method === 'sbp' ? 'Оплата по СБП' : 'Оплата картой', a: S.pay.amount });
+            S.pay.state = 'done'; render();
+          });
+        }).catch(function (e) { S.pay.state = 'form'; S.pay.err = e.message; render(); });
+        return;
+      }
       setTimeout(function () {
         a.ops.unshift({ d: today(), t: 'pay', label: S.pay.method === 'sbp' ? 'Оплата по СБП' : 'Оплата картой', a: S.pay.amount });
         S.pay.state = 'done'; render();
@@ -636,6 +731,42 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     }
     if (name === 'close-req') { S.sheet = null; S.tab = 'req'; return render(); }
     if (name === 'call') { S.sheet = 'call'; return render(); }
+    if (name === 'autopay') { S.ap = { step: 'form', day: a.autopay.day, max: a.autopay.max_amount, err: '' }; S.sheet = 'autopay'; return render(); }
+    if (name === 'ap-bind') {
+      if (!apValid()) return;
+      if (!a.real) { S.ap.step = 'bank'; return render(); }
+      apCall({ action: 'bind', day: S.ap.day, max_amount: S.ap.max }).then(function (j) {
+        if (j.url) { location.href = j.url; return; }
+        S.ap.step = 'bank'; render();
+      }).catch(function (e) { S.ap.err = e.message; render(); });
+      return;
+    }
+    if (name === 'ap-bankpay') {
+      S.ap.step = 'busy'; S.ap.err = ''; render();
+      var pan = (document.getElementById('bk-pan') || {}).value || '';
+      var mask = '•• ' + (pan.replace(/\D/g, '').slice(-4) || '4242');
+      var finish = function (st) {
+        apApply(st); S.ap.step = 'done'; render();
+        note('Автоплатёж подключён', 'Ближайшее списание ' + nextDate(st.day) + ', не больше ' + rub(st.max_amount));
+      };
+      if (!a.real) { setTimeout(function () { finish({ enabled: true, day: S.ap.day, max_amount: S.ap.max, card_mask: mask }); }, 1300); return; }
+      apCall({ action: 'confirm' }).then(function () { return apCall({ action: 'settings', day: S.ap.day, max_amount: S.ap.max }); })
+        .then(finish).catch(function (e) { S.ap.step = 'bank'; S.ap.err = e.message; render(); });
+      return;
+    }
+    if (name === 'ap-save') {
+      if (!apValid()) return;
+      var save = function (st) { apApply(st); S.sheet = null; render(); push('Автоплатёж', 'Сохранено: ' + st.day + '-го числа, не больше ' + rub(st.max_amount)); };
+      if (!a.real) return save({ enabled: true, day: S.ap.day, max_amount: S.ap.max, card_mask: a.autopay.card_mask });
+      apCall({ action: 'settings', day: S.ap.day, max_amount: S.ap.max }).then(save).catch(function (e) { S.ap.err = e.message; render(); });
+      return;
+    }
+    if (name === 'ap-off') {
+      var off = function (st) { apApply(st); S.ap.step = 'done'; render(); };
+      if (!a.real) return off({ enabled: false, day: a.autopay.day, max_amount: a.autopay.max_amount, card_mask: null });
+      apCall({ action: 'off' }).then(off).catch(function (e) { S.ap.err = e.message; render(); });
+      return;
+    }
     if (name === 'logout') { TARIFF = 100; S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: S.reqSeq }; return render(); }
   }
 
