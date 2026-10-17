@@ -436,6 +436,14 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         return acc;
       });
   }
+  if (API) {
+    var strip = document.querySelector('.demo-strip');
+    if (strip) strip.textContent = 'ТЕСТ · данные из 1С, оплата не списывается';
+    var aside = document.querySelector('.aside');
+    if (aside) aside.innerHTML = '<h2>Приложение «Домофон Сервис»</h2>' +
+      '<p>Тестовая версия на реальной базе 1С. Войдите по номеру лицевого счёта и коду доступа из квитанции.</p>' +
+      '<p>Оплата и автоплатёж работают в тестовом режиме: деньги не списываются, пока не подключён банк.</p>';
+  }
   var MONTHS_N = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
 
   function renderApp() {
