@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>Приложение Домофон Сервис</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one phone-width app column; on wide screens it sits centred like a phone, with a short note beside it. Single committed look (brand: ink + signal orange on cool light ground). */
+:root {
+  --ground: #E9EBF0;      /* page behind the "phone" */
+  --surface: #F5F6F8;     /* app background */
+  --card: #FFFFFF;
+  --ink: #0B0D10;         /* brand dark */
+  --ink-2: #161820;
+  --line: #E1E4EB;
+  --text: #0B0D10;
+  --muted: #5C6079;
+  --muted-dark: #ABB1C4;
+  --accent: #E67E22;      /* brand orange */
+  --accent-strong: #C9661A;
+  --accent-tint: #FDEFE3;
+  --blue: #1E4FD6;
+  --blue-tint: #EAF1FD;
+  --ok: #1F8A4C;   --ok-tint: #E4F4EA;
+  --warn: #A15C00; --warn-tint: #FFF1D6;
+  --bad: #B3261E;  --bad-tint: #FBE6E4;
+  --display: 'Unbounded', 'Manrope', system-ui, sans-serif;
+  --body: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--ground); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.45; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+.stage { min-height: 100%; display: flex; justify-content: center; align-items: flex-start; gap: 40px; padding-block: 24px; padding-inline: 16px; }
+.phone { width: 100%; max-width: 400px; height: min(820px, calc(100vh - 48px)); min-height: 600px; background: var(--surface); border-radius: 32px; box-shadow: 0 1px 0 var(--line), 0 24px 60px rgba(11,13,16,.18); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+.aside { width: 280px; padding-top: 32px; color: var(--muted); font-size: 14px; }
+.aside h2 { font-family: var(--display); font-size: 18px; color: var(--text); margin: 0 0 12px; line-height: 1.25; text-wrap: balance; }
+.aside p { margin: 0 0 12px; }
+.aside table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.aside td { padding: 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+.aside td:first-child { font-variant-numeric: tabular-nums; color: var(--text); font-weight: 700; padding-right: 10px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .stage { padding: 0; }
+  .aside { display: none; }
+  .phone { max-width: none; height: 100%; min-height: 100%; border-radius: 0; box-shadow: none; }
+}
+
+/* ---------- shared ---------- */
+.demo-strip { background: var(--accent); color: var(--ink); font-size: 12px; font-weight: 700; text-align: center; padding: 6px 12px; letter-spacing: .02em; }
+.screen { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.pad { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.h1 { font-family: var(--display); font-size: 22px; line-height: 1.2; margin: 0; text-wrap: balance; }
+.h2 { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 8px 0 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
+.btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 12px 18px; border-radius: 14px; border: none; font-weight: 800; font-size: 15px; width: 100%; }
+.btn-primary { background: var(--accent); color: var(--ink); }
+.btn-primary:hover { background: var(--accent-strong); }
+.btn-primary:disabled { opacity: .5; cursor: default; }
+.btn-dark { background: var(--ink); color: #F5F6F8; }
+.btn-ghost { background: transparent; border: 1.5px solid var(--line); color: var(--text); font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; font-weight: 700; color: var(--muted); }
+.input { min-height: 50px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); padding: 0 14px; font-size: 16px; width: 100%; }
+textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
+.input:focus { outline: 2px solid var(--blue); outline-offset: 1px; border-color: transparent; }
+.error { color: var(--bad); font-size: 13px; font-weight: 600; }
+.card { background: var(--card); border-radius: 18px; padding: 16px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.chip::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { background: var(--ok-tint); color: var(--ok); }
+.chip.warn { background: var(--warn-tint); color: var(--warn); }
+.chip.bad { background: var(--bad-tint); color: var(--bad); }
+.chip.info { background: var(--blue-tint); color: var(--blue); }
+
+/* ---------- login ---------- */
+.login-hero { background: var(--ink); color: #F5F6F8; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .02em; }
+.brand svg { width: 28px; height: 28px; flex-shrink: 0; }
+.login-hero .h1 { color: #F5F6F8; font-size: 24px; }
+.login-hero p { margin: 0; color: var(--muted-dark); }
+.demo-accounts { display: flex; flex-direction: column; gap: 8px; }
+.acc-pick { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; text-align: left; background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+.acc-pick:hover { border-color: var(--accent); }
+.acc-pick b { display: block; font-size: 14px; }
+.acc-pick span { font-size: 12px; color: var(--muted); }
+.code-boxes { display: flex; gap: 10px; }
+.code-boxes input { width: 56px; height: 60px; text-align: center; font-size: 24px; font-weight: 800; border-radius: 14px; border: 1.5px solid var(--line); background: var(--card); }
+
+/* ---------- app shell ---------- */
+.topbar { background: var(--ink); color: #F5F6F8; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.topbar .who { min-width: 0; }
+.topbar .who b { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .who span { font-size: 12px; color: var(--muted-dark); }
+.bell { position: relative; width: 40px; height: 40px; border-radius: 12px; background: var(--ink-2); border: none; display: grid; place-items: center; color: #F5F6F8; flex-shrink: 0; }
+.bell i { position: absolute; top: 7px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--ink-2); }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--card); border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); }
+.tab { background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; font-size: 11px; font-weight: 700; color: var(--muted); border-radius: 10px; }
+.tab svg { width: 22px; height: 22px; }
+.tab[aria-current="page"] { color: var(--ink); }
+.tab[aria-current="page"] svg { color: var(--accent); }
+
+/* ---------- home ---------- */
+.balance { background: var(--ink); color: #F5F6F8; border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.balance .lbl { font-size: 13px; color: var(--muted-dark); font-weight: 600; }
+.balance .amt { font-family: var(--display); font-size: 34px; line-height: 1.05; }
+.balance .amt.debt { color: var(--accent); }
+.balance .meta { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted-dark); flex-wrap: wrap; }
+.quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.quick button { background: var(--card); border: none; border-radius: 16px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; text-align: center; }
+.quick .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
+.quick .ico svg { width: 22px; height: 22px; }
+.ico.o { background: var(--accent-tint); color: var(--accent-strong); }
+.ico.b { background: var(--blue-tint); color: var(--blue); }
+.row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.row > div { min-width: 0; }
+.list { display: flex; flex-direction: column; }
+.list .item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.list .item:first-child { border-top: none; padding-top: 0; }
+.list .item:last-child { padding-bottom: 0; }
+.item .t { font-weight: 700; font-size: 14px; }
+.item .s { font-size: 12px; color: var(--muted); }
+.amt-plus { color: var(--ok); font-weight: 800; white-space: nowrap; }
+.amt-minus { color: var(--text); font-weight: 800; white-space: nowrap; }
+.linkbtn { background: none; border: none; color: var(--blue); font-weight: 700; font-size: 13px; padding: 4px 0; }
+.addr { display: flex; gap: 12px; align-items: flex-start; }
+.addr .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; }
+
+/* ---------- sheets ---------- */
+.overlay { position: absolute; inset: 0; background: rgba(11,13,16,.45); display: flex; align-items: flex-end; z-index: 20; }
+.sheet { background: var(--surface); width: 100%; border-radius: 24px 24px 0 0; max-height: 92%; overflow-y: auto; padding: 8px 20px calc(20px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 14px; }
+.grab { width: 40px; height: 4px; border-radius: 4px; background: var(--line); align-self: center; margin-bottom: 4px; }
+.sheet-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.x { width: 36px; height: 36px; border-radius: 10px; border: none; background: var(--card); display: grid; place-items: center; flex-shrink: 0; }
+.methods { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.method { border: 1.5px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.method b { font-size: 14px; }
+.method span { font-size: 12px; color: var(--muted); }
+.method[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.amount-wrap { position: relative; }
+.amount-wrap .input { font-family: var(--display); font-size: 24px; padding-right: 40px; }
+.amount-wrap span { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--muted); }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.presets button { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; }
+.receipt { background: var(--card); border-radius: 18px; padding: 16px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+.receipt .row span:first-child { color: var(--muted); }
+.success-mark { width: 64px; height: 64px; border-radius: 50%; background: var(--ok-tint); color: var(--ok); display: grid; place-items: center; align-self: center; }
+.spinner { width: 22px; height: 22px; border: 3px solid rgba(11,13,16,.25); border-top-color: var(--ink); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- requests ---------- */
+.services { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.svc { border: 1.5px solid var(--line); background: var(--card); border-radius: 14px; padding: 12px; text-align: left; font-size: 13px; font-weight: 700; min-height: 56px; }
+.svc[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); }
+.photo-drop { border: 1.5px dashed var(--line); border-radius: 14px; padding: 14px; display: flex; gap: 12px; align-items: center; background: var(--card); }
+.photo-drop img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; }
+.thumb-ph { width: 64px; height: 64px; border-radius: 10px; background: var(--blue-tint); color: var(--blue); display: grid; place-items: center; flex-shrink: 0; }
+.req { display: flex; flex-direction: column; gap: 10px; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.steps i { height: 4px; border-radius: 4px; background: var(--line); }
+.steps i.on { background: var(--accent); }
+.req-photo { width: 100%; max-width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 12px; }
+
+/* ---------- toast (imitates a push notification) ---------- */
+.toast { position: absolute; left: 12px; right: 12px; top: 12px; z-index: 30; background: var(--ink); color: #F5F6F8; border-radius: 16px; padding: 12px 14px; display: flex; gap: 12px; align-items: flex-start; box-shadow: 0 12px 30px rgba(11,13,16,.3); transform: translateY(-140%); transition: transform .35s ease; }
+.toast.show { transform: translateY(0); }
+.toast .tico { width: 34px; height: 34px; border-radius: 10px; background: var(--accent); color: var(--ink); display: grid; place-items: center; flex-shrink: 0; }
+.toast b { display: block; font-size: 14px; }
+.toast span { font-size: 13px; color: var(--muted-dark); }
+.empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+</style>
+
+<div class="stage">
+  <div class="phone" id="phone">
+    <div class="demo-strip">ДЕМО · данные вымышлены, оплата тестовая</div>
+    <div id="app" class="screen-host" style="flex:1;display:flex;flex-direction:column;min-height:0"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite">
+      <div class="tico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 003.4 0"/></svg></div>
+      <div><b id="toast-title"></b><span id="toast-text"></span></div>
+    </div>
+  </div>
+
+  <aside class="aside">
+    <h2>Приложение «Домофон Сервис»</h2>
+    <p>Демо-версия личного кабинета абонента. Все функции можно попробовать прямо здесь. Данные в демо вымышленные.</p>
+    <p>Тестовые лицевые счета (телефон любой, код из SMS — <b>1234</b>):</p>
+    <table>
+      <tr><td>100245</td><td>Долг 300 ₽ за 3 месяца</td></tr>
+      <tr><td>100318</td><td>Оплачено, долга нет</td></tr>
+      <tr><td>200071</td><td>Долг 1 250 ₽ + заявка в работе</td></tr>
+    </table>
+    <p style="margin-top:12px">Что можно попробовать: войти, оплатить долг, оставить заявку с фото и посмотреть, как меняется её статус.</p>
+  </aside>
+</div>
+
+<script>
+(function () {
+  // ---------- demo data (fictional) ----------
+  var TARIFF = 100;
+  // Адрес API. Можно задать параметром ссылки: app.html?api=https://сервер
+  var API = (new URLSearchParams(location.search).get('api') || window.DOMOFON_API || '').replace(/\/$/, '');
+  var ACCOUNTS = {
+    '100245': { name: 'Анна Сергеевна К.', address: 'ул. Молодёжная, 91, под. 2, кв. 47', phone: '+7 912 ••• •• 18', ops: [
+      { d: '2026-10-01', t: 'charge', label: 'Обслуживание домофона, октябрь', a: 100 },
+      { d: '2026-09-01', t: 'charge', label: 'Обслуживание домофона, сентябрь', a: 100 },
+      { d: '2026-08-01', t: 'charge', label: 'Обслуживание домофона, август', a: 100 },
+      { d: '2026-07-14', t: 'pay',    label: 'Оплата по СБП', a: 300 },
+      { d: '2026-07-01', t: 'charge', label: 'Обслуживание домофона, июль', a: 100 }
+    ], debtStart: 0, requests: [] },
+    '100318': { name: 'Игорь Валерьевич П.', address: 'ул. Пушкинская, 152, под. 1, кв. 9', phone: '+7 950 ••• •• 04', ops: [
+      { d: '2026-10-02', t: 'pay',    label: 'Оплата картой', a: 100 },
+      { d: '2026-10-01', t: 'charge', label: 'Обслуживание домофона, октябрь', a: 100 },
+      { d: '2026-09-03', t: 'pay',    label: 'Оплата картой', a: 100 },
+      { d: '2026-09-01', t: 'charge', label: 'Обслуживание домофона, сентябрь', a: 100 }
+    ], debtStart: 0, requests: [
+      { id: 'З-2194', svc: 'Изготовление ключей', text: 'Нужно 2 брелока для подъезда', d: '2026-09-12', step: 3, photo: null }
+    ] },
+    '200071': { name: 'Ольга Николаевна Т.', address: 'ул. Ленина, 46, под. 3, кв. 112', phone: '+7 904 ••• •• 63', ops: [
+      { d: '2026-10-01', t: 'charge', label: 'Обслуживание домофона, октябрь', a: 100 },
+      { d: '2026-09-18', t: 'charge', label: 'Ключ-брелок, 2 шт.', a: 450 },
+      { d: '2026-09-01', t: 'charge', label: 'Обслуживание домофона, сентябрь', a: 100 },
+      { d: '2026-08-01', t: 'charge', label: 'Обслуживание домофона, август', a: 100 },
+      { d: '2026-07-01', t: 'charge', label: 'Обслуживание домофона, июль', a: 100 },
+      { d: '2026-06-01', t: 'charge', label: 'Обслуживание домофона, июнь', a: 100 }
+    ], debtStart: 400, requests: [
+      { id: 'З-2207', svc: 'Ремонт / диагностика', text: 'Трубка не открывает дверь, гудок есть', d: '2026-10-06', step: 1, photo: null }
+    ] }
+  };
+  var SERVICES = ['Ремонт / диагностика', 'Изготовление ключей', 'Установка видеопанели', 'Обслуживание домофона', 'Договор для УК/ТСЖ', 'Другое'];
+  var STEPS = ['Принята', 'Мастер назначен', 'Мастер выехал', 'Выполнена'];
+  var MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+  // ---------- state ----------
+  var S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: 2231 };
+  var app = document.getElementById('app');
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function rub(n) { return Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + ' ₽'; }
+  function fmtDate(iso) { var p = iso.split('-'); return +p[2] + ' ' + MONTHS[+p[1] - 1] + (+p[0] !== new Date().getFullYear() ? ' ' + p[0] : ''); }
+  function today() { var t = new Date(); return t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2); }
+  function debt(a) {
+    var charges = 0, pays = 0;
+    a.ops.forEach(function (o) { if (o.t === 'charge') charges += o.a; else pays += o.a; });
+    return a.debtStart + charges - pays - sumBefore(a);
+  }
+  // debtStart already includes everything before the visible history; payments before it are not shown.
+  function sumBefore(a) { return a._base || 0; }
+  // Calibrate so each demo account opens with the intended balance.
+  (function calibrate() {
+    var target = { '100245': 300, '100318': 0, '200071': 1250 };
+    Object.keys(ACCOUNTS).forEach(function (k) { var a = ACCOUNTS[k]; a._base = 0; a._base = debt(a) - target[k]; });
+  })();
+
+  var ICON = {
+    home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1z"/></svg>',
+    hist: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"/></svg>',
+    req:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 00-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 005.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>',
+    card: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>',
+    phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2"/></svg>',
+    pin:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-12a7 7 0 0114 0c0 5.8-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>',
+    cam:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
+    x:    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    check:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    bell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 003.4 0"/></svg>',
+    key:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M15 8l2 2"/></svg>'
+  };
+  var LOGO = '<svg viewBox="0 0 30 30" fill="none" aria-hidden="true"><rect x="1" y="1" width="28" height="28" rx="8" stroke="#E67E22" stroke-width="2"/><circle cx="15" cy="12" r="3.2" fill="#E67E22"/><rect x="10.5" y="17.5" width="9" height="7" rx="1.5" fill="#E67E22"/></svg>';
+
+  // ---------- toast (push imitation) ----------
+  var toastTimer;
+  function push(title, text) {
+    var t = document.getElementById('toast');
+    document.getElementById('toast-title').textContent = title;
+    document.getElementById('toast-text').textContent = text;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 4200);
+    if (S.acc) S.acc.unread = true;
+  }
+
+  // ---------- render ----------
+  function render() {
+    if (S.stage === 'login') return renderLogin();
+    if (S.stage === 'code') return renderCode();
+    renderApp();
+  }
+
+  function renderLogin() {
+    app.innerHTML =
+      '<div class="screen">' +
+        '<div class="login-hero"><div class="brand">' + LOGO + 'ДОМОФОН СЕРВИС</div>' +
+          '<h1 class="h1">Личный кабинет абонента</h1>' +
+          '<p>Проверка долга, оплата и заявки мастеру — в одном месте.</p></div>' +
+        '<form class="pad" id="login-form" novalidate>' +
+          '<div class="field"><label for="acc">Номер лицевого счёта</label>' +
+            '<input class="input num" id="acc" inputmode="numeric" autocomplete="off" placeholder="Например, 100245" value="' + esc(S.pendingAcc) + '"></div>' +
+          (API ? '' : '<div class="field"><label for="tel">Телефон</label>' +
+            '<input class="input num" id="tel" type="tel" autocomplete="tel" placeholder="+7 900 000-00-00"></div>') +
+          (S.loginErr ? '<div class="error" role="alert">' + esc(S.loginErr) + '</div>' : '') +
+          '<button class="btn btn-primary" type="submit">' + (API ? 'Далее' : 'Получить код по SMS') + '</button>' +
+          '<p class="small muted" style="margin:0">Номер лицевого счёта указан в квитанции и в договоре.</p>' +
+          '<h2 class="h2">Тестовые счета</h2>' +
+          '<div class="demo-accounts">' +
+            Object.keys(ACCOUNTS).map(function (k) {
+              var a = ACCOUNTS[k], d = debt(a);
+              return '<button type="button" class="acc-pick" data-acc="' + k + '"><div><b class="num">' + k + '</b><span>' + esc(a.address) + '</span></div>' +
+                (d > 0 ? '<span class="chip bad">долг ' + rub(d) + '</span>' : '<span class="chip ok">оплачено</span>') + '</button>';
+            }).join('') +
+          '</div>' +
+        '</form>' +
+      '</div>';
+    document.getElementById('login-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var no = document.getElementById('acc').value.replace(/\D/g, '');
+      var tel = API ? '0000000000' : document.getElementById('tel').value.replace(/\D/g, '');
+      S.pendingAcc = no;
+      if (!ACCOUNTS[no] && API) { S.loginErr = ''; S.real = true; S.stage = 'code'; return render(); }
+      if (!ACCOUNTS[no]) { S.loginErr = 'Лицевой счёт ' + (no || '—') + ' не найден. Проверьте номер в квитанции или выберите тестовый счёт ниже.'; return render(); }
+      if (tel.length < 10) { S.loginErr = 'Введите телефон полностью, 10–11 цифр.'; return render(); }
+      S.loginErr = ''; S.stage = 'code'; render();
+    });
+    app.querySelectorAll('.acc-pick').forEach(function (b) {
+      b.addEventListener('click', function () {
+        document.getElementById('acc').value = b.dataset.acc;
+        if (!API) document.getElementById('tel').value = '+7 900 000-00-00';
+        S.pendingAcc = b.dataset.acc;
+      });
+    });
+  }
+
+  function renderCode() {
+    if (S.real) return renderAccessCode();
+    var a = ACCOUNTS[S.pendingAcc];
+    app.innerHTML =
+      '<div class="screen"><form class="pad" id="code-form" novalidate>' +
+        '<button type="button" class="linkbtn" id="back" style="align-self:flex-start">← Назад</button>' +
+        '<h1 class="h1">Введите код из SMS</h1>' +
+        '<p class="muted" style="margin:0">Отправили 4 цифры на номер, указанный в заявке. В демо-версии код всегда <b>1234</b>.</p>' +
+        '<div class="code-boxes">' + [0,1,2,3].map(function (i) { return '<input id="c' + i + '" class="num" inputmode="numeric" maxlength="1" aria-label="Цифра ' + (i + 1) + '">'; }).join('') + '</div>' +
+        (S.loginErr ? '<div class="error" role="alert">' + esc(S.loginErr) + '</div>' : '') +
+        '<button class="btn btn-primary" type="submit">Войти</button>' +
+        '<p class="small muted" style="margin:0">Лицевой счёт <b class="num">' + esc(S.pendingAcc) + '</b> · ' + esc(a.address) + '</p>' +
+      '</form></div>';
+    var boxes = [0,1,2,3].map(function (i) { return document.getElementById('c' + i); });
+    boxes.forEach(function (b, i) {
+      b.addEventListener('input', function () { b.value = b.value.replace(/\D/g, '').slice(0, 1); if (b.value && boxes[i + 1]) boxes[i + 1].focus(); if (boxes.every(function (x) { return x.value; })) submit(); });
+      b.addEventListener('keydown', function (e) { if (e.key === 'Backspace' && !b.value && boxes[i - 1]) boxes[i - 1].focus(); });
+    });
+    boxes[0].focus();
+    function submit() {
+      var code = boxes.map(function (x) { return x.value; }).join('');
+      if (code !== '1234') { S.loginErr = 'Код не подходит. В демо-версии введите 1234.'; return render(); }
+      S.loginErr = ''; S.accNo = S.pendingAcc; S.acc = ACCOUNTS[S.accNo]; S.stage = 'app'; S.tab = 'home'; render();
+    }
+    document.getElementById('code-form').addEventListener('submit', function (e) { e.preventDefault(); submit(); });
+    document.getElementById('back').addEventListener('click', function () { S.loginErr = ''; S.stage = 'login'; render(); });
+  }
+
+  // ---------- вход по коду доступа из квитанции (реальная база) ----------
+  function renderAccessCode() {
+    app.innerHTML =
+      '<div class="screen"><form class="pad" id="code-form" novalidate>' +
+        '<button type="button" class="linkbtn" id="back" style="align-self:flex-start">← Назад</button>' +
+        '<h1 class="h1">Код доступа</h1>' +
+        '<p class="muted" style="margin:0">8 символов, напечатаны в квитанции рядом с номером лицевого счёта. Код нужен, чтобы ваши данные не увидел посторонний.</p>' +
+        '<div class="field"><label for="acode">Код из квитанции</label><input class="input num" id="acode" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Например, AB7K2QXM" style="letter-spacing:3px;text-transform:uppercase"></div>' +
+        (S.loginErr ? '<div class="error" role="alert">' + esc(S.loginErr) + '</div>' : '') +
+        '<button class="btn btn-primary" type="submit" id="go">Войти</button>' +
+        '<p class="small muted" style="margin:0">Лицевой счёт <b class="num">' + esc(S.pendingAcc) + '</b></p>' +
+      '</form></div>';
+    var inp = document.getElementById('acode'); inp.focus();
+    document.getElementById('back').addEventListener('click', function () { S.loginErr = ''; S.real = false; S.stage = 'login'; render(); });
+    document.getElementById('code-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var code = inp.value.replace(/\s/g, '').toUpperCase();
+      if (code.length !== 8) { S.loginErr = 'Код состоит из 8 символов.'; return render(); }
+      var btn = document.getElementById('go'); btn.disabled = true; btn.textContent = 'Проверяем…';
+      apiLogin(S.pendingAcc, code).then(function (acc) {
+        S.loginErr = ''; S.accNo = acc.no; S.acc = acc; S.stage = 'app'; S.tab = 'home'; render();
+      }).catch(function (err) { S.loginErr = err.message; render(); });
+    });
+  }
+
+  function api(path, opt) {
+    return fetch(API + path, opt).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; });
+    }, function () { throw new Error('Сервер недоступен. Проверьте интернет и попробуйте ещё раз.'); });
+  }
+  function apiLogin(no, code) {
+    var tok;
+    return api('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: no, code: code }) })
+      .then(function (j) {
+        if (j._status === 429) throw new Error('Слишком много попыток. Вход по этому счёту заблокирован на ' + Math.ceil(j.retry_after / 60) + ' мин.');
+        if (j._status === 401) throw new Error('Неверный номер счёта или код.' + (j.attempts_left ? ' Осталось попыток: ' + j.attempts_left + '.' : ''));
+        if (!j.token) throw new Error('Не удалось войти. Попробуйте позже.');
+        tok = j.token;
+        var h = { headers: { Authorization: 'Bearer ' + tok } };
+        return Promise.all([api('/api/account', h), api('/api/history', h)]);
+      }).then(function (res) {
+        var ac = res[0], hist = res[1];
+        var ops = (Array.isArray(hist) ? hist : []).filter(function (o) { return o.date <= today().replace(/-/g, ''); }).map(function (o) {
+          var iso = o.date.slice(0, 4) + '-' + o.date.slice(4, 6) + '-' + o.date.slice(6, 8);
+          var isPay = o.sign === '-';
+          return { d: iso, t: isPay ? 'pay' : 'charge', label: o.kind === 'Начисление' ? 'Обслуживание домофона, ' + MONTHS_N[+o.date.slice(4, 6) - 1] : o.kind, a: o.amount };
+        });
+        var acc = { no: ac.account, name: ac.fio, address: 'г. Ижевск, ' + ac.address, phone: ac.phone || 'не указан', ops: ops, requests: [], debtStart: 0, tariff: ac.tariff, real: true, token: tok,
+          lastPay: ac.last_payment ? { d: ac.last_payment.date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3') } : null };
+        var realDebt = ac.debt > 0 ? ac.debt : -ac.prepaid;
+        acc._base = 0; acc._base = debt(acc) - realDebt;
+        if (ac.tariff) TARIFF = ac.tariff;
+        return acc;
+      });
+  }
+  var MONTHS_N = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+
+  function renderApp() {
+    var a = S.acc;
+    var body = S.tab === 'home' ? homeView(a) : S.tab === 'hist' ? histView(a) : S.tab === 'req' ? reqView(a) : profileView(a);
+    var tabs = [['home', 'Главная'], ['hist', 'История'], ['req', 'Заявки'], ['user', 'Профиль']];
+    app.innerHTML =
+      '<div class="topbar"><div class="who"><b>' + esc(a.name) + '</b><span class="num">Лицевой счёт ' + esc(S.accNo) + '</span></div>' +
+        '<button class="bell" id="bell" aria-label="Уведомления">' + ICON.bell + (a.unread ? '<i></i>' : '') + '</button></div>' +
+      '<div class="screen" id="scr"><div class="pad">' + body + '</div></div>' +
+      '<nav class="tabs" aria-label="Разделы">' + tabs.map(function (t) {
+        return '<button class="tab" data-tab="' + t[0] + '"' + (S.tab === t[0] ? ' aria-current="page"' : '') + '>' + ICON[t[0]] + t[1] + '</button>';
+      }).join('') + '</nav>' +
+      (S.sheet ? sheetHtml() : '');
+    bindApp();
+  }
+
+  function homeView(a) {
+    var d = debt(a);
+    var last = a.ops.filter(function (o) { return o.t === 'pay' && (!a.real || /^Оплата/.test(o.label)); })[0] || a.lastPay;
+    var active = a.requests.filter(function (r) { return r.step < 3; })[0];
+    return '' +
+      '<section class="balance" aria-label="Баланс">' +
+        '<div><div class="lbl">' + (d > 0 ? 'К оплате' : d < 0 ? 'Переплата' : 'Задолженности нет') + '</div>' +
+          '<div class="amt num' + (d > 0 ? ' debt' : '') + '">' + rub(Math.abs(d)) + '</div></div>' +
+        '<div class="meta"><span>Тариф: ' + TARIFF + ' ₽ в месяц</span><span>' + (last ? 'Последняя оплата ' + fmtDate(last.d) : 'Оплат пока не было') + '</span></div>' +
+        (d > 0 ? '<button class="btn btn-primary" data-act="pay">Оплатить ' + rub(d) + '</button>'
+               : '<button class="btn btn-ghost" style="color:#F5F6F8;border-color:#2B2F3A" data-act="pay">Внести аванс</button>') +
+      '</section>' +
+      '<div class="quick">' +
+        '<button data-act="newreq"><span class="ico o">' + ICON.req + '</span>Вызвать мастера</button>' +
+        '<button data-act="keys"><span class="ico b">' + ICON.key + '</span>Заказать ключ</button>' +
+        '<button data-act="call"><span class="ico o">' + ICON.phone + '</span>Позвонить</button>' +
+      '</div>' +
+      (active ? '<section class="card req"><div class="row"><div><div class="t" style="font-weight:800">Заявка ' + active.id + '</div><div class="s muted small">' + esc(active.svc) + '</div></div>' + stepChip(active.step) + '</div>' + stepsBar(active.step) + '<button class="linkbtn" data-tab-go="req" style="align-self:flex-start">Все заявки →</button></section>' : '') +
+      '<section class="card"><div class="row" style="margin-bottom:10px"><b>Последние операции</b><button class="linkbtn" data-tab-go="hist">Вся история</button></div>' +
+        '<div class="list">' + a.ops.slice(0, 3).map(opRow).join('') + '</div></section>' +
+      '<section class="card addr"><span class="ico b" style="background:var(--blue-tint);color:var(--blue)">' + ICON.pin + '</span><div><b>' + esc(a.address) + '</b><div class="small muted">Ижевск · обслуживание по договору с УК</div></div></section>';
+  }
+
+  function opRow(o) {
+    return '<div class="item"><div><div class="t">' + esc(o.label) + '</div><div class="s">' + fmtDate(o.d) + '</div></div>' +
+      '<div class="num ' + (o.t === 'pay' ? 'amt-plus">+' : 'amt-minus">−') + rub(o.a) + '</div></div>';
+  }
+
+  function histView(a) {
+    return '<h1 class="h1">История</h1>' +
+      '<p class="muted small" style="margin:0">Начисления и оплаты по лицевому счёту ' + esc(S.accNo) + '.</p>' +
+      '<section class="card"><div class="list">' + a.ops.map(opRow).join('') + '</div></section>' +
+      '<section class="card row"><div><b>Итого к оплате</b><div class="small muted">на ' + fmtDate(today()) + '</div></div><b class="num" style="font-size:18px">' + rub(Math.max(0, debt(a))) + '</b></section>';
+  }
+
+  function stepChip(step) {
+    var cls = step === 3 ? 'ok' : step === 0 ? 'info' : 'warn';
+    return '<span class="chip ' + cls + '">' + STEPS[step] + '</span>';
+  }
+  function stepsBar(step) { return '<div class="steps" aria-hidden="true">' + [0,1,2,3].map(function (i) { return '<i class="' + (i <= step ? 'on' : '') + '"></i>'; }).join('') + '</div>'; }
+
+  function reqView(a) {
+    return '<div class="row"><h1 class="h1">Заявки</h1></div>' +
+      '<button class="btn btn-primary" data-act="newreq">Новая заявка</button>' +
+      (a.requests.length ? a.requests.map(function (r) {
+        return '<section class="card req"><div class="row"><div><b>' + r.id + ' · ' + esc(r.svc) + '</b><div class="small muted">от ' + fmtDate(r.d) + '</div></div>' + stepChip(r.step) + '</div>' +
+          stepsBar(r.step) + '<div class="small">' + esc(r.text || 'Без комментария') + '</div>' +
+          (r.photo ? '<img class="req-photo" src="' + r.photo + '" alt="Фото к заявке ' + r.id + '">' : '') + '</section>';
+      }).join('') : '<div class="empty">Заявок пока нет. Нажмите «Новая заявка», чтобы вызвать мастера.</div>');
+  }
+
+  function profileView(a) {
+    return '<h1 class="h1">Профиль</h1>' +
+      '<section class="card"><div class="list">' +
+        '<div class="item"><div><div class="s">Абонент</div><div class="t">' + esc(a.name) + '</div></div></div>' +
+        '<div class="item"><div><div class="s">Лицевой счёт</div><div class="t num">' + esc(S.accNo) + '</div></div></div>' +
+        '<div class="item"><div><div class="s">Адрес</div><div class="t">' + esc(a.address) + '</div></div></div>' +
+        '<div class="item"><div><div class="s">Телефон</div><div class="t num">' + esc(a.phone) + '</div></div></div>' +
+      '</div></section>' +
+      '<section class="card"><div class="list">' +
+        '<div class="item"><div><div class="t">Уведомления о заявках</div><div class="s">Мастер назначен, выехал, работа выполнена</div></div><span class="chip ok">вкл</span></div>' +
+        '<div class="item"><div><div class="t">Напоминание об оплате</div><div class="s">5-го числа, если есть долг</div></div><span class="chip ok">вкл</span></div>' +
+      '</div></section>' +
+      '<section class="card"><div class="t" style="font-weight:800">Служба поддержки</div><div class="num" style="font-size:18px;font-weight:800;margin-top:4px">+7 (3412) 30-60-70</div><div class="small muted">пн–пт 09:00–17:00 · ул. Молодёжная, 91</div></section>' +
+      '<button class="btn btn-ghost" data-act="logout">Выйти</button>' +
+      '<p class="small muted" style="margin:0;text-align:center">ИП Михайлова Елена Анатольевна</p>';
+  }
+
+  // ---------- sheets ----------
+  function sheetHtml() {
+    var a = S.acc, d = Math.max(0, debt(a));
+    var inner = '';
+    if (S.sheet === 'pay') {
+      var p = S.pay;
+      if (p.state === 'done') {
+        inner = '<div class="success-mark">' + ICON.check + '</div>' +
+          '<h2 class="h1" style="text-align:center;font-size:20px">Оплата прошла</h2>' +
+          '<div class="receipt"><div class="row"><span>Сумма</span><b class="num">' + rub(p.amount) + '</b></div>' +
+          '<div class="row"><span>Способ</span><b>' + (p.method === 'sbp' ? 'СБП' : 'Банковская карта') + '</b></div>' +
+          '<div class="row"><span>Лицевой счёт</span><b class="num">' + esc(S.accNo) + '</b></div>' +
+          '<div class="row"><span>Остаток долга</span><b class="num">' + rub(Math.max(0, debt(a))) + '</b></div></div>' +
+          '<p class="small muted" style="margin:0">Чек придёт на телефон. В демо-версии деньги не списываются.</p>' +
+          '<button class="btn btn-dark" data-act="close">Готово</button>';
+      } else {
+        inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Оплата</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
+          '<div class="field"><label for="pay-amount">Сумма</label><div class="amount-wrap"><input class="input num" id="pay-amount" inputmode="numeric" value="' + p.amount + '"><span>₽</span></div></div>' +
+          '<div class="presets">' + (d > 0 ? '<button type="button" data-preset="' + d + '">Весь долг · ' + rub(d) + '</button>' : '') +
+            '<button type="button" data-preset="' + TARIFF + '">1 месяц · ' + rub(TARIFF) + '</button><button type="button" data-preset="' + TARIFF * 3 + '">3 месяца · ' + rub(TARIFF * 3) + '</button></div>' +
+          '<div class="field"><label>Способ оплаты</label><div class="methods">' +
+            '<button type="button" class="method" data-method="sbp" aria-pressed="' + (p.method === 'sbp') + '"><b>СБП</b><span>через приложение банка, без комиссии</span></button>' +
+            '<button type="button" class="method" data-method="card" aria-pressed="' + (p.method === 'card') + '"><b>Картой</b><span>Мир, Visa, Mastercard</span></button>' +
+          '</div></div>' +
+          (p.err ? '<div class="error" role="alert">' + esc(p.err) + '</div>' : '') +
+          '<button class="btn btn-primary" data-act="dopay"' + (p.state === 'busy' ? ' disabled' : '') + '>' + (p.state === 'busy' ? '<span class="spinner" aria-hidden="true"></span>Проводим оплату…' : 'Оплатить ' + rub(p.amount)) + '</button>' +
+          '<p class="small muted" style="margin:0">Тестовая оплата: деньги не списываются.</p>';
+      }
+    } else if (S.sheet === 'newreq') {
+      var n = S.newReq;
+      if (n.done) {
+        inner = '<div class="success-mark">' + ICON.check + '</div>' +
+          '<h2 class="h1" style="text-align:center;font-size:20px">Заявка ' + n.id + ' принята</h2>' +
+          '<p class="muted" style="margin:0;text-align:center">Когда мастер будет назначен и выедет, придёт уведомление. Следить за статусом можно во вкладке «Заявки».</p>' +
+          '<button class="btn btn-dark" data-act="close-req">Хорошо</button>';
+      } else {
+        inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Новая заявка</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
+          '<div class="field"><label>Что случилось</label><div class="services">' + SERVICES.map(function (s) {
+            return '<button type="button" class="svc" data-svc="' + esc(s) + '" aria-pressed="' + (n.svc === s) + '">' + esc(s) + '</button>'; }).join('') + '</div></div>' +
+          '<div class="field"><label for="req-text">Комментарий</label><textarea class="input" id="req-text" placeholder="Например: трубка не открывает дверь, гудок есть">' + esc(n.text) + '</textarea></div>' +
+          '<div class="field"><label for="req-photo">Фото панели или трубки</label>' +
+            '<label class="photo-drop" for="req-photo">' + (n.photo ? '<img src="' + n.photo + '" alt="Выбранное фото">' : '<span class="thumb-ph">' + ICON.cam + '</span>') +
+            '<span><b>' + (n.photo ? 'Фото добавлено' : 'Добавить фото') + '</b><br><span class="small muted">' + (n.photo ? 'Нажмите, чтобы заменить' : 'Мастер заранее поймёт, что взять с собой') + '</span></span></label>' +
+            '<input id="req-photo" type="file" accept="image/*" hidden></div>' +
+          '<div class="small muted">Адрес: ' + esc(S.acc.address) + '</div>' +
+          (n.err ? '<div class="error" role="alert">' + esc(n.err) + '</div>' : '') +
+          '<button class="btn btn-primary" data-act="sendreq">Отправить заявку</button>';
+      }
+    } else if (S.sheet === 'call') {
+      inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Позвонить</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
+        '<div class="card"><div class="small muted">Диспетчерская</div><div class="num" style="font-size:24px;font-weight:800;font-family:var(--display)">+7 (3412) 30-60-70</div><div class="small muted">пн–пт 09:00–17:00</div></div>' +
+        '<p class="small muted" style="margin:0">В приложении номер набирается одним нажатием. В демо он просто показан.</p>' +
+        '<button class="btn btn-dark" data-act="close">Закрыть</button>';
+    } else if (S.sheet === 'notes') {
+      var notes = S.acc.notes || [];
+      inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Уведомления</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
+        (notes.length ? '<div class="card"><div class="list">' + notes.map(function (x) { return '<div class="item"><div><div class="t">' + esc(x.t) + '</div><div class="s">' + esc(x.s) + '</div></div></div>'; }).join('') + '</div></div>'
+                      : '<div class="empty">Новых уведомлений нет. Здесь появятся статусы заявок и напоминания об оплате.</div>');
+    }
+    return '<div class="overlay" id="overlay"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>' + inner + '</div></div>';
+  }
+
+  function note(title, text) {
+    S.acc.notes = S.acc.notes || [];
+    S.acc.notes.unshift({ t: title, s: text });
+    push(title, text);
+  }
+
+  // ---------- events ----------
+  function bindApp() {
+    app.querySelectorAll('[data-tab]').forEach(function (b) { b.addEventListener('click', function () { S.tab = b.dataset.tab; S.sheet = null; render(); }); });
+    app.querySelectorAll('[data-tab-go]').forEach(function (b) { b.addEventListener('click', function () { S.tab = b.dataset.tabGo; render(); }); });
+    var bell = document.getElementById('bell');
+    if (bell) bell.addEventListener('click', function () { S.acc.unread = false; S.sheet = 'notes'; render(); });
+    app.querySelectorAll('[data-act]').forEach(function (b) { b.addEventListener('click', function () { act(b.dataset.act); }); });
+    var ov = document.getElementById('overlay');
+    if (ov) ov.addEventListener('click', function (e) { if (e.target === ov && !(S.pay && S.pay.state === 'busy')) { S.sheet = null; render(); } });
+    app.querySelectorAll('[data-preset]').forEach(function (b) { b.addEventListener('click', function () { S.pay.amount = +b.dataset.preset; S.pay.err = ''; render(); }); });
+    app.querySelectorAll('[data-method]').forEach(function (b) { b.addEventListener('click', function () { readAmount(); S.pay.method = b.dataset.method; render(); }); });
+    var amt = document.getElementById('pay-amount');
+    if (amt) amt.addEventListener('input', function () { amt.value = amt.value.replace(/\D/g, '').slice(0, 6); });
+    app.querySelectorAll('[data-svc]').forEach(function (b) { b.addEventListener('click', function () { readReq(); S.newReq.svc = b.dataset.svc; S.newReq.err = ''; render(); }); });
+    var file = document.getElementById('req-photo');
+    if (file) file.addEventListener('change', function () {
+      var f = file.files && file.files[0]; if (!f) return;
+      readReq();
+      var r = new FileReader();
+      r.onload = function () { S.newReq.photo = r.result; render(); };
+      r.readAsDataURL(f);
+    });
+  }
+  function readAmount() { var el = document.getElementById('pay-amount'); if (el) S.pay.amount = +(el.value || 0); }
+  function readReq() { var el = document.getElementById('req-text'); if (el) S.newReq.text = el.value; }
+
+  function act(name) {
+    var a = S.acc;
+    if (name === 'pay') { var d = Math.max(0, debt(a)); S.pay = { amount: d || TARIFF, method: 'sbp', state: 'form', err: '' }; S.sheet = 'pay'; return render(); }
+    if (name === 'close') { if (S.pay && S.pay.state === 'busy') return; S.sheet = null; return render(); }
+    if (name === 'dopay') {
+      readAmount();
+      if (!S.pay.amount || S.pay.amount < 1) { S.pay.err = 'Введите сумму от 1 ₽.'; return render(); }
+      if (S.pay.amount > 50000) { S.pay.err = 'За один раз можно оплатить до 50 000 ₽.'; return render(); }
+      S.pay.err = ''; S.pay.state = 'busy'; render();
+      setTimeout(function () {
+        a.ops.unshift({ d: today(), t: 'pay', label: S.pay.method === 'sbp' ? 'Оплата по СБП' : 'Оплата картой', a: S.pay.amount });
+        S.pay.state = 'done'; render();
+      }, 1400);
+      return;
+    }
+    if (name === 'newreq' || name === 'keys') {
+      S.newReq = { svc: name === 'keys' ? 'Изготовление ключей' : '', text: '', photo: null, err: '', done: false };
+      S.sheet = 'newreq'; return render();
+    }
+    if (name === 'sendreq') {
+      readReq();
+      if (!S.newReq.svc) { S.newReq.err = 'Выберите, что случилось.'; return render(); }
+      var id = 'З-' + (S.reqSeq++);
+      var r = { id: id, svc: S.newReq.svc, text: S.newReq.text.trim(), d: today(), step: 0, photo: S.newReq.photo };
+      a.requests.unshift(r);
+      S.newReq.done = true; S.newReq.id = id; render();
+      // Imitate status pushes from the dispatcher.
+      setTimeout(function () { r.step = 1; note('Заявка ' + id + ': мастер назначен', 'Мастер Сергей приедет сегодня с 14:00 до 16:00'); render(); }, 6000);
+      setTimeout(function () { r.step = 2; note('Заявка ' + id + ': мастер выехал', 'Будет у вас примерно через 30 минут'); render(); }, 14000);
+      return;
+    }
+    if (name === 'close-req') { S.sheet = null; S.tab = 'req'; return render(); }
+    if (name === 'call') { S.sheet = 'call'; return render(); }
+    if (name === 'logout') { TARIFF = 100; S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: S.reqSeq }; return render(); }
+  }
+
+  render();
+})();
+</script>
+
+</body>
+</html>
