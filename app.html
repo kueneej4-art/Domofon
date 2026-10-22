@@ -418,10 +418,14 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         if (j._status === 429) throw new Error('Слишком много попыток. Вход по этому счёту заблокирован на ' + Math.ceil(j.retry_after / 60) + ' мин.');
         if (j._status === 401) throw new Error('Неверный номер счёта или код.' + (j.attempts_left ? ' Осталось попыток: ' + j.attempts_left + '.' : ''));
         if (!j.token) throw new Error('Не удалось войти. Попробуйте позже.');
-        tok = j.token;
-        var h = { headers: { Authorization: 'Bearer ' + tok } };
-        return Promise.all([api('/api/account', h), api('/api/history', h)]);
-      }).then(function (res) {
+        return apiLoad(j.token);
+      });
+  }
+  function apiLoad(tok) {
+    var h = { headers: { Authorization: 'Bearer ' + tok } };
+    return Promise.all([api('/api/account', h), api('/api/history', h)])
+      .then(function (res) {
+        if (res[0]._status !== 200) throw new Error('Сессия истекла. Войдите заново.');
         var ac = res[0], hist = res[1];
         var ops = (Array.isArray(hist) ? hist : []).filter(function (o) { return o.date <= today().replace(/-/g, ''); }).map(function (o) {
           var iso = o.date.slice(0, 4) + '-' + o.date.slice(4, 6) + '-' + o.date.slice(6, 8);
@@ -438,11 +442,41 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
   }
   if (API) {
     var strip = document.querySelector('.demo-strip');
-    if (strip) strip.textContent = 'ТЕСТ · данные из 1С, оплата не списывается';
+    if (strip) strip.textContent = 'ТЕСТ · данные из 1С, оплата через тестовый магазин';
     var aside = document.querySelector('.aside');
     if (aside) aside.innerHTML = '<h2>Приложение «Домофон Сервис»</h2>' +
       '<p>Тестовая версия на реальной базе 1С. Войдите по номеру лицевого счёта и коду доступа из квитанции.</p>' +
-      '<p>Оплата и автоплатёж работают в тестовом режиме: деньги не списываются, пока не подключён банк.</p>';
+      '<p>Оплата и автоплатёж идут через ЮKassa. В тестовом магазине используйте тестовую карту 5555 5555 5555 4477, срок — любая будущая дата, CVC и код 3-D Secure — любые.</p>';
+  }
+  var RET = location.origin + location.pathname + '?api=' + encodeURIComponent(API) + '&ret=1';
+  function goPay(url, order, kind) {          // уходим на страницу ЮKassa, сессию запоминаем на время оплаты
+    try { sessionStorage.setItem('dmf', JSON.stringify({ token: S.acc.token, no: S.accNo, order: order, kind: kind })); } catch (e) {}
+    location.href = url;
+  }
+  function resumeAfterPay() {                 // абонент вернулся со страницы ЮKassa
+    var st = null;
+    try { st = JSON.parse(sessionStorage.getItem('dmf') || 'null'); sessionStorage.removeItem('dmf'); } catch (e) {}
+    history.replaceState(null, '', location.pathname + '?api=' + encodeURIComponent(API));
+    if (!st || !st.token) return false;
+    app.innerHTML = '<div class="screen"><div class="pad"><p class="muted">Проверяем оплату…</p></div></div>';
+    apiLoad(st.token).then(function (acc) {
+      S.accNo = acc.no; S.acc = acc; S.stage = 'app'; S.tab = 'home';
+      var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + st.token };
+      var req = st.kind === 'bind'
+        ? api('/api/autopay', { method: 'POST', headers: h, body: JSON.stringify({ action: 'confirm', order: st.order }) })
+        : api('/api/pay/confirm', { method: 'POST', headers: h, body: JSON.stringify({ order: st.order }) });
+      return req.then(function (j) {
+        return apiLoad(st.token).then(function (fresh) {
+          S.acc = fresh; render();
+          if (st.kind === 'bind') {
+            if (fresh.autopay.enabled) note('Автоплатёж подключён', 'Карта ' + fresh.autopay.card_mask + ', ближайшее списание ' + nextDate(fresh.autopay.day));
+            else push('Автоплатёж не подключён', 'Оплата не завершена. Попробуйте ещё раз.');
+          } else if (j.paid) push('Оплата прошла', 'Спасибо! Долг: ' + rub(Math.max(0, debt(fresh))));
+          else push('Оплата не завершена', j.status === 'canceled' ? 'Платёж отменён.' : 'Если деньги списались, статус обновится в течение нескольких минут.');
+        });
+      });
+    }).catch(function () { S.stage = 'login'; S.loginErr = 'Сессия истекла. Войдите заново — оплата сохранится.'; render(); });
+    return true;
   }
   var MONTHS_N = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
 
@@ -611,8 +645,8 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           '<button class="btn btn-dark" data-act="close">Готово</button>';
       } else if (f.step === 'bank' || f.step === 'busy') {
         inner = head +
-          '<p class="muted" style="margin:0">Это страница банка. Для привязки карты спишем и сразу вернём 1 ₽. Данные карты видит только банк, в приложении они не хранятся.</p>' +
-          '<div class="bankform" aria-label="Учебная форма банка"><div class="small muted">Страница банка · учебный режим</div>' +
+          '<p class="muted" style="margin:0">Это страница оплаты. Первый платёж — ' + (f.amount ? rub(f.amount) + ' ' : '') + 'в счёт долга или аванс за месяц; карта сохранится для следующих списаний. Данные карты видит только платёжная система, в приложении они не хранятся.</p>' +
+          '<div class="bankform" aria-label="Учебная форма банка"><div class="small muted">Страница оплаты · учебный режим</div>' +
             '<input class="input num" id="bk-pan" inputmode="numeric" placeholder="Номер карты" value="2200 0000 0000 4242">' +
             '<div class="row2"><input class="input num" placeholder="ММ/ГГ" value="12/29"><input class="input num" placeholder="CVC" value="123"></div></div>' +
           (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
@@ -629,8 +663,9 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       } else {
         inner = head +
           '<p class="muted" style="margin:0">Раз в месяц спишем с карты сумму долга по лицевому счёту <b class="num">' + esc(S.accNo) + '</b>. Нет долга — ничего не списываем. За день до списания пришлём уведомление.</p>' +
+          '<p class="small muted" style="margin:0">Чтобы сохранить карту, первым платежом оплатим текущий долг (не больше лимита) или аванс за месяц.</p>' +
           settings + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
-          '<button class="btn btn-primary" data-act="ap-bind">Подключить и привязать карту</button>';
+          '<button class="btn btn-primary" data-act="ap-bind">Подключить и оплатить</button>';
       }
     } else if (S.sheet === 'call') {
       inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Позвонить</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
@@ -690,6 +725,12 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     if (S.ap.max > 50000) { S.ap.err = 'Лимит — не больше 50 000 ₽.'; render(); return false; }
     S.ap.err = ''; return true;
   }
+  function apLoadAgain(st) {                 // после привязки обновляем долг и историю с сервера
+    apiLoad(S.acc.token).then(function (fresh) {
+      S.acc = fresh; S.ap.step = 'done'; render();
+      note('Автоплатёж подключён', 'Ближайшее списание ' + nextDate(st.day) + ', не больше ' + rub(st.max_amount));
+    });
+  }
   function apApply(st) { var ap = S.acc.autopay; ap.enabled = st.enabled; ap.day = st.day; ap.max_amount = st.max_amount; ap.card_mask = st.card_mask; }
   function readReq() { var el = document.getElementById('req-text'); if (el) S.newReq.text = el.value; }
 
@@ -704,9 +745,9 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       S.pay.err = ''; S.pay.state = 'busy'; render();
       if (a.real) {
         var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.token };
-        api('/api/pay', { method: 'POST', headers: h, body: JSON.stringify({ amount: S.pay.amount }) }).then(function (j) {
+        api('/api/pay', { method: 'POST', headers: h, body: JSON.stringify({ amount: S.pay.amount, return_url: RET }) }).then(function (j) {
           if (j._status !== 200) throw new Error('Не удалось создать платёж. Попробуйте позже.');
-          if (j.url) { location.href = j.url; return; }
+          if (j.url) { goPay(j.url, j.order, 'pay'); return; }
           return api('/api/pay/confirm', { method: 'POST', headers: h, body: JSON.stringify({ order: j.order }) }).then(function (c) {
             if (!c.paid) throw new Error('Банк не подтвердил оплату.');
             a.ops.unshift({ d: today(), t: 'pay', label: S.pay.method === 'sbp' ? 'Оплата по СБП' : 'Оплата картой', a: S.pay.amount });
@@ -742,10 +783,10 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     if (name === 'autopay') { S.ap = { step: 'form', day: a.autopay.day, max: a.autopay.max_amount, err: '' }; S.sheet = 'autopay'; return render(); }
     if (name === 'ap-bind') {
       if (!apValid()) return;
-      if (!a.real) { S.ap.step = 'bank'; return render(); }
-      apCall({ action: 'bind', day: S.ap.day, max_amount: S.ap.max }).then(function (j) {
-        if (j.url) { location.href = j.url; return; }
-        S.ap.step = 'bank'; render();
+      if (!a.real) { S.ap.amount = Math.min(Math.max(0, debt(a)), S.ap.max) || TARIFF; S.ap.step = 'bank'; return render(); }
+      apCall({ action: 'bind', day: S.ap.day, max_amount: S.ap.max, return_url: RET }).then(function (j) {
+        if (j.url) { goPay(j.url, j.order, 'bind'); return; }
+        S.ap.order = j.order; S.ap.amount = j.amount; S.ap.step = 'bank'; render();
       }).catch(function (e) { S.ap.err = e.message; render(); });
       return;
     }
@@ -757,9 +798,9 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         apApply(st); S.ap.step = 'done'; render();
         note('Автоплатёж подключён', 'Ближайшее списание ' + nextDate(st.day) + ', не больше ' + rub(st.max_amount));
       };
-      if (!a.real) { setTimeout(function () { finish({ enabled: true, day: S.ap.day, max_amount: S.ap.max, card_mask: mask }); }, 1300); return; }
-      apCall({ action: 'confirm' }).then(function () { return apCall({ action: 'settings', day: S.ap.day, max_amount: S.ap.max }); })
-        .then(finish).catch(function (e) { S.ap.step = 'bank'; S.ap.err = e.message; render(); });
+      if (!a.real) { setTimeout(function () { a.ops.unshift({ d: today(), t: 'pay', label: 'Оплата картой, подключение автоплатежа', a: S.ap.amount }); finish({ enabled: true, day: S.ap.day, max_amount: S.ap.max, card_mask: mask }); }, 1300); return; }
+      apCall({ action: 'confirm', order: S.ap.order })
+        .then(function (st) { apLoadAgain(st); }).catch(function (e) { S.ap.step = 'bank'; S.ap.err = e.message; render(); });
       return;
     }
     if (name === 'ap-save') {
@@ -778,7 +819,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     if (name === 'logout') { TARIFF = 100; S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: S.reqSeq }; return render(); }
   }
 
-  render();
+  if (!(API && /[?&]ret=1/.test(location.search) && resumeAfterPay())) render();
 })();
 </script>
 
