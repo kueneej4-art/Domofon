@@ -387,7 +387,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       '<div class="screen"><form class="pad" id="code-form" novalidate>' +
         '<button type="button" class="linkbtn" id="back" style="align-self:flex-start">← Назад</button>' +
         '<h1 class="h1">Код доступа</h1>' +
-        '<p class="muted" style="margin:0">8 символов, напечатаны в квитанции рядом с номером лицевого счёта. Код нужен, чтобы ваши данные не увидел посторонний.</p>' +
+        '<p class="muted" style="margin:0">8 символов, напечатан в квитанции внизу: «Код для входа». Код нужен, чтобы ваши данные не увидел посторонний. Вводится один раз — дальше приложение помнит вход.</p>' +
         '<div class="field"><label for="acode">Код из квитанции</label><input class="input num" id="acode" autocomplete="off" autocapitalize="characters" maxlength="8" placeholder="Например, AB7K2QXM" style="letter-spacing:3px;text-transform:uppercase"></div>' +
         (S.loginErr ? '<div class="error" role="alert">' + esc(S.loginErr) + '</div>' : '') +
         '<button class="btn btn-primary" type="submit" id="go">Войти</button>' +
@@ -401,9 +401,27 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       if (code.length !== 8) { S.loginErr = 'Код состоит из 8 символов.'; return render(); }
       var btn = document.getElementById('go'); btn.disabled = true; btn.textContent = 'Проверяем…';
       apiLogin(S.pendingAcc, code).then(function (acc) {
+        authSave(S.pendingAcc, code);
         S.loginErr = ''; S.accNo = acc.no; S.acc = acc; S.stage = 'app'; S.tab = 'home'; render();
       }).catch(function (err) { S.loginErr = err.message; render(); });
     });
+  }
+
+  // запоминаем вход на этом устройстве, чтобы не вводить код каждый раз
+  function authSave(no, code) { try { localStorage.setItem('dmf_auth', JSON.stringify({ no: no, code: code })); } catch (e) {} }
+  function authLoad() { try { return JSON.parse(localStorage.getItem('dmf_auth') || 'null'); } catch (e) { return null; } }
+  function authClear() { try { localStorage.removeItem('dmf_auth'); } catch (e) {} }
+  function autoLogin() {
+    var a = authLoad();
+    if (!API || !a || !a.no || !a.code) return false;
+    app.innerHTML = '<div class="screen"><div class="pad"><p class="muted">Входим…</p></div></div>';
+    apiLogin(a.no, a.code).then(function (acc) {
+      S.accNo = acc.no; S.acc = acc; S.stage = 'app'; S.tab = 'home'; render();
+    }).catch(function (err) {
+      if (/Неверный/.test(err.message)) authClear();
+      S.loginErr = err.message; S.stage = 'login'; render();
+    });
+    return true;
   }
 
   function api(path, opt) {
@@ -432,7 +450,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           var isPay = o.sign === '-';
           return { d: iso, t: isPay ? 'pay' : 'charge', label: o.kind === 'Начисление' ? 'Обслуживание домофона, ' + MONTHS_N[+o.date.slice(4, 6) - 1] : o.kind, a: o.amount };
         });
-        var acc = { no: ac.account, name: ac.fio, address: 'г. Ижевск, ' + ac.address, phone: ac.phone || 'не указан', ops: ops, requests: [], debtStart: 0, tariff: ac.tariff, real: true, token: tok, autopay: ac.autopay || { enabled: false, day: 5, max_amount: 1000, card_mask: null },
+        var acc = { no: ac.account, name: ac.fio, address: 'г. Ижевск, ' + ac.address, phone: ac.phone || 'не указан', ops: ops, requests: [], debtStart: 0, tariff: ac.tariff, real: true, token: tok, receipt: ac.receipt_contact || rcLoad(ac.account), receiptRequired: !!ac.receipt_required, autopay: ac.autopay || { enabled: false, day: 5, max_amount: 1000, card_mask: null },
           lastPay: ac.last_payment ? { d: ac.last_payment.date.replace(/(\d{4})(\d\d)(\d\d)/, '$1-$2-$3') } : null };
         var realDebt = ac.debt > 0 ? ac.debt : -ac.prepaid;
         acc._base = 0; acc._base = debt(acc) - realDebt;
@@ -440,6 +458,42 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         return acc;
       });
   }
+  // ---------- чек (54-ФЗ): куда прислать ----------
+  function normContact(v) {                  // → '79121234567' или 'name@mail.ru'; '' если не похоже
+    v = (v || '').trim();
+    if (!v) return '';
+    if (v.indexOf('@') > 0) return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? v.toLowerCase() : '';
+    var d = v.replace(/\D/g, '');
+    if (d.length === 11 && (d[0] === '7' || d[0] === '8')) return '7' + d.slice(1);
+    if (d.length === 10 && d[0] === '9') return '7' + d;
+    return '';
+  }
+  function showContact(c) {
+    if (!c) return '';
+    if (c.indexOf('@') > 0) return c;
+    return '+7 ' + c.slice(1, 4) + ' ' + c.slice(4, 7) + '-' + c.slice(7, 9) + '-' + c.slice(9, 11);
+  }
+  function rcLoad(no) { try { return localStorage.getItem('dmf_rc_' + no) || ''; } catch (e) { return ''; } }
+  function rcSave(no, c) { try { localStorage.setItem('dmf_rc_' + no, c); } catch (e) {} }
+  function rcField() {
+    var v = S.rcDraft != null ? S.rcDraft : showContact(S.acc.receipt);
+    return '<div class="field"><label for="rc">Куда прислать чек</label>' +
+      '<input class="input" id="rc" inputmode="email" autocomplete="email" placeholder="Телефон или e-mail" value="' + esc(v) + '">' +
+      '<div class="small muted">Электронный чек по 54-ФЗ придёт по SMS или на почту.</div></div>';
+  }
+  function rcTake(errTarget) {               // проверяет поле; при ошибке пишет текст в errTarget.err
+    var el = document.getElementById('rc');
+    if (!el) return S.acc.receipt || '';
+    S.rcDraft = el.value;
+    var c = normContact(el.value);
+    if (!c && (el.value.trim() || S.acc.receiptRequired)) {
+      errTarget.err = 'Укажите телефон (+7…) или e-mail для чека.';
+      return null;
+    }
+    if (c) { S.acc.receipt = c; rcSave(S.accNo, c); }
+    return c;
+  }
+
   if (API) {
     var strip = document.querySelector('.demo-strip');
     if (strip) strip.textContent = 'ТЕСТ · данные из 1С, оплата через тестовый магазин';
@@ -591,7 +645,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           '<div class="row"><span>Способ</span><b>' + (p.method === 'sbp' ? 'СБП' : 'Банковская карта') + '</b></div>' +
           '<div class="row"><span>Лицевой счёт</span><b class="num">' + esc(S.accNo) + '</b></div>' +
           '<div class="row"><span>Остаток долга</span><b class="num">' + rub(Math.max(0, debt(a))) + '</b></div></div>' +
-          '<p class="small muted" style="margin:0">Чек придёт на телефон. В демо-версии деньги не списываются.</p>' +
+          '<p class="small muted" style="margin:0">' + (a.real ? (a.receipt ? 'Чек придёт: ' + esc(showContact(a.receipt)) + '.' : '') : 'Чек придёт на телефон. В демо-версии деньги не списываются.') + '</p>' +
           '<button class="btn btn-dark" data-act="close">Готово</button>';
       } else {
         inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Оплата</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
@@ -602,6 +656,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
             '<button type="button" class="method" data-method="sbp" aria-pressed="' + (p.method === 'sbp') + '"><b>СБП</b><span>через приложение банка, без комиссии</span></button>' +
             '<button type="button" class="method" data-method="card" aria-pressed="' + (p.method === 'card') + '"><b>Картой</b><span>Мир, Visa, Mastercard</span></button>' +
           '</div></div>' +
+          (a.real ? rcField() : '') +
           (p.err ? '<div class="error" role="alert">' + esc(p.err) + '</div>' : '') +
           '<button class="btn btn-primary" data-act="dopay"' + (p.state === 'busy' ? ' disabled' : '') + '>' + (p.state === 'busy' ? '<span class="spinner" aria-hidden="true"></span>Проводим оплату…' : 'Оплатить ' + rub(p.amount)) + '</button>' +
           '<p class="small muted" style="margin:0">Тестовая оплата: деньги не списываются.</p>';
@@ -664,7 +719,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
         inner = head +
           '<p class="muted" style="margin:0">Раз в месяц спишем с карты сумму долга по лицевому счёту <b class="num">' + esc(S.accNo) + '</b>. Нет долга — ничего не списываем. За день до списания пришлём уведомление.</p>' +
           '<p class="small muted" style="margin:0">Чтобы сохранить карту, первым платежом оплатим текущий долг (не больше лимита) или аванс за месяц.</p>' +
-          settings + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
+          settings + (a.real ? rcField() : '') + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
           '<button class="btn btn-primary" data-act="ap-bind">Подключить и оплатить</button>';
       }
     } else if (S.sheet === 'call') {
@@ -696,6 +751,8 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     app.querySelectorAll('[data-act]').forEach(function (b) { b.addEventListener('click', function () { act(b.dataset.act); }); });
     var ov = document.getElementById('overlay');
     if (ov) ov.addEventListener('click', function (e) { if (e.target === ov && !(S.pay && S.pay.state === 'busy')) { S.sheet = null; render(); } });
+    var rcIn = document.getElementById('rc');
+    if (rcIn) rcIn.addEventListener('input', function () { S.rcDraft = rcIn.value; var er = app.querySelector('.sheet .error'); if (er && /чека/.test(er.textContent)) { er.remove(); if (S.pay) S.pay.err = ''; if (S.ap) S.ap.err = ''; } });
     app.querySelectorAll('[data-preset]').forEach(function (b) { b.addEventListener('click', function () { S.pay.amount = +b.dataset.preset; S.pay.err = ''; render(); }); });
     app.querySelectorAll('[data-method]').forEach(function (b) { b.addEventListener('click', function () { readAmount(); S.pay.method = b.dataset.method; render(); }); });
     var amt = document.getElementById('pay-amount');
@@ -736,16 +793,18 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 
   function act(name) {
     var a = S.acc;
-    if (name === 'pay') { var d = Math.max(0, debt(a)); S.pay = { amount: d || TARIFF, method: 'sbp', state: 'form', err: '' }; S.sheet = 'pay'; return render(); }
+    if (name === 'pay') { S.rcDraft = null; var d = Math.max(0, debt(a)); S.pay = { amount: d || TARIFF, method: 'sbp', state: 'form', err: '' }; S.sheet = 'pay'; return render(); }
     if (name === 'close') { if (S.pay && S.pay.state === 'busy') return; S.sheet = null; return render(); }
     if (name === 'dopay') {
       readAmount();
       if (!S.pay.amount || S.pay.amount < 1) { S.pay.err = 'Введите сумму от 1 ₽.'; return render(); }
       if (S.pay.amount > 50000) { S.pay.err = 'За один раз можно оплатить до 50 000 ₽.'; return render(); }
+      var rc = a.real ? rcTake(S.pay) : '';
+      if (rc === null) return render();
       S.pay.err = ''; S.pay.state = 'busy'; render();
       if (a.real) {
         var h = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + a.token };
-        api('/api/pay', { method: 'POST', headers: h, body: JSON.stringify({ amount: S.pay.amount, return_url: RET }) }).then(function (j) {
+        api('/api/pay', { method: 'POST', headers: h, body: JSON.stringify({ amount: S.pay.amount, return_url: RET, receipt_contact: rc }) }).then(function (j) {
           if (j._status !== 200) throw new Error('Не удалось создать платёж. Попробуйте позже.');
           if (j.url) { goPay(j.url, j.order, 'pay'); return; }
           return api('/api/pay/confirm', { method: 'POST', headers: h, body: JSON.stringify({ order: j.order }) }).then(function (c) {
@@ -780,11 +839,13 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     }
     if (name === 'close-req') { S.sheet = null; S.tab = 'req'; return render(); }
     if (name === 'call') { S.sheet = 'call'; return render(); }
-    if (name === 'autopay') { S.ap = { step: 'form', day: a.autopay.day, max: a.autopay.max_amount, err: '' }; S.sheet = 'autopay'; return render(); }
+    if (name === 'autopay') { S.rcDraft = null; S.ap = { step: 'form', day: a.autopay.day, max: a.autopay.max_amount, err: '' }; S.sheet = 'autopay'; return render(); }
     if (name === 'ap-bind') {
       if (!apValid()) return;
+      var rcb = a.real ? rcTake(S.ap) : '';
+      if (rcb === null) return render();
       if (!a.real) { S.ap.amount = Math.min(Math.max(0, debt(a)), S.ap.max) || TARIFF; S.ap.step = 'bank'; return render(); }
-      apCall({ action: 'bind', day: S.ap.day, max_amount: S.ap.max, return_url: RET }).then(function (j) {
+      apCall({ action: 'bind', day: S.ap.day, max_amount: S.ap.max, return_url: RET, receipt_contact: rcb }).then(function (j) {
         if (j.url) { goPay(j.url, j.order, 'bind'); return; }
         S.ap.order = j.order; S.ap.amount = j.amount; S.ap.step = 'bank'; render();
       }).catch(function (e) { S.ap.err = e.message; render(); });
@@ -816,10 +877,10 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       apCall({ action: 'off' }).then(off).catch(function (e) { S.ap.err = e.message; render(); });
       return;
     }
-    if (name === 'logout') { TARIFF = 100; S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: S.reqSeq }; return render(); }
+    if (name === 'logout') { authClear(); TARIFF = 100; S = { stage: 'login', acc: null, accNo: null, tab: 'home', loginErr: '', pendingAcc: '', sheet: null, pay: null, newReq: null, reqSeq: S.reqSeq }; return render(); }
   }
 
-  if (!(API && /[?&]ret=1/.test(location.search) && resumeAfterPay())) render();
+  if (!(API && /[?&]ret=1/.test(location.search) && resumeAfterPay())) { if (!autoLogin()) render(); }
 })();
 </script>
 
