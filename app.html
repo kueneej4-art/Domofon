@@ -118,7 +118,14 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 .balance .amt { font-family: var(--display); font-size: 34px; line-height: 1.05; }
 .balance .amt.debt { color: var(--accent); }
 .balance .meta { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted-dark); flex-wrap: wrap; }
-.quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.connect-card { background: var(--card); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.connect-card b { font-size: 16px; }
+.lead-kinds { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.lead-kinds button { text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font: inherit; font-size: 15px; }
+.lead-kinds button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 700; }
+.row2i { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .quick button { background: var(--card); border: none; border-radius: 16px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; text-align: center; }
 .quick .ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; }
 .quick .ico svg { width: 22px; height: 22px; }
@@ -287,6 +294,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     x:    '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     check:'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     bell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 003.4 0"/></svg>',
+    plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M9 7h6M10 11h.01M14 11h.01M10 14.5h.01M14 14.5h.01M10 18h4"/></svg>',
     key:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M17 6l2 2M15 8l2 2"/></svg>'
   };
   var LOGO = '<svg viewBox="0 0 30 30" fill="none" aria-hidden="true"><rect x="1" y="1" width="28" height="28" rx="8" stroke="#E67E22" stroke-width="2"/><circle cx="15" cy="12" r="3.2" fill="#E67E22"/><rect x="10.5" y="17.5" width="9" height="7" rx="1.5" fill="#E67E22"/></svg>';
@@ -304,9 +312,70 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
   }
 
   // ---------- render ----------
+  // ---------- заявка на подключение ----------
+  var LEAD_KINDS = [['flat', 'Подключить квартиру к домофону'], ['house', 'Установить домофон в подъезд / дом'], ['video', 'Установить видеодомофон'], ['other', 'Другое']];
+  function leadStart() { S.lead = { kind: 'flat', name: '', phone: '', street: '', house: '', ent: '', flat: '', comment: '', err: '', busy: false, done: false }; }
+  function leadFormHtml(back) {
+    var L = S.lead, f = function (id, label, val, attrs) {
+      return '<div class="field"><label for="ld-' + id + '">' + label + '</label><input class="input" id="ld-' + id + '" value="' + esc(val) + '" ' + (attrs || '') + '></div>'; };
+    if (L.done) return '<div class="success-mark">' + ICON.check + '</div>' +
+      '<h2 class="h1" style="text-align:center;font-size:20px">Заявка' + (L.id ? ' №' + L.id : '') + ' отправлена</h2>' +
+      '<p class="muted" style="margin:0;text-align:center">Диспетчер перезвонит вам в рабочее время (пн–пт 9:00–17:00) и согласует время выезда мастера.</p>' +
+      '<button class="btn btn-dark" data-lead="close">Хорошо</button>';
+    return back +
+      '<h2 class="h1" style="font-size:22px">Заявка на подключение</h2>' +
+      '<div class="field"><label>Что нужно</label><div class="lead-kinds">' + LEAD_KINDS.map(function (k) {
+        return '<button type="button" data-kind="' + k[0] + '" aria-pressed="' + (L.kind === k[0]) + '">' + k[1] + '</button>'; }).join('') + '</div></div>' +
+      f('street', 'Улица', L.street, 'autocomplete="address-line1" placeholder="Например, ул. Молодёжная"') +
+      '<div class="row2i">' + f('house', 'Дом', L.house, 'placeholder="91"') + f('ent', 'Подъезд', L.ent, 'inputmode="numeric"') + f('flat', 'Кв.', L.flat, 'inputmode="numeric"') + '</div>' +
+      f('name', 'Как к вам обращаться', L.name, 'autocomplete="name" placeholder="Имя"') +
+      f('phone', 'Телефон', L.phone, 'type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 900 000-00-00"') +
+      '<div class="field"><label for="ld-comment">Комментарий</label><textarea class="input" id="ld-comment" placeholder="Удобное время звонка, вопросы">' + esc(L.comment) + '</textarea></div>' +
+      '<input class="hp" id="ld-website" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+      (L.err ? '<div class="error" role="alert">' + esc(L.err) + '</div>' : '') +
+      '<button class="btn btn-primary" data-lead="send"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? '<span class="spinner" aria-hidden="true"></span>Отправляем…' : 'Отправить заявку') + '</button>' +
+      '<p class="small muted" style="margin:0">Нажимая «Отправить заявку», вы соглашаетесь на <a href="privacy.html" target="_blank" rel="noopener">обработку персональных данных</a>. Звонок бесплатный, выезд мастера на осмотр — по согласованию.</p>';
+  }
+  function leadRead() {
+    var L = S.lead; ['name', 'phone', 'street', 'house', 'ent', 'flat', 'comment'].forEach(function (k) { var el = document.getElementById('ld-' + k); if (el) L[k] = el.value; });
+  }
+  function leadBind(root) {
+    root.querySelectorAll('[data-kind]').forEach(function (b) { b.addEventListener('click', function () { leadRead(); S.lead.kind = b.dataset.kind; S.lead.err = ''; render(); }); });
+    root.querySelectorAll('[data-lead]').forEach(function (b) { b.addEventListener('click', function () { leadAct(b.dataset.lead); }); });
+  }
+  function leadAct(a) {
+    var L = S.lead;
+    if (a === 'back' || a === 'close') { if (S.stage === 'lead') S.stage = 'login'; else S.sheet = null; S.lead = null; return render(); }
+    if (a !== 'send' || L.busy) return;
+    leadRead();
+    var digits = L.phone.replace(/\D/g, '');
+    if (!L.street.trim() || !L.house.trim()) { L.err = 'Укажите улицу и номер дома.'; return render(); }
+    if (!L.name.trim()) { L.err = 'Укажите, как к вам обращаться.'; return render(); }
+    if (!(digits.length === 11 && /^[78]/.test(digits)) && !(digits.length === 10 && digits[0] === '9')) { L.err = 'Укажите телефон полностью: +7 и 10 цифр.'; return render(); }
+    L.err = ''; L.busy = true; render();
+    var hp = (document.getElementById('ld-website') || {}).value || '';
+    if (!API) { setTimeout(function () { L.busy = false; L.done = true; L.id = 1000 + (S.reqSeq++ % 1000); render(); }, 900); return; }
+    var h = { 'Content-Type': 'application/json' };
+    if (S.acc && S.acc.token) h.Authorization = 'Bearer ' + S.acc.token;
+    api('/api/lead', { method: 'POST', headers: h, body: JSON.stringify({ kind: L.kind, name: L.name, phone: L.phone, street: L.street, house: L.house, entrance: L.ent, flat: L.flat, comment: L.comment, website: hp }) })
+      .then(function (j) {
+        L.busy = false;
+        if (j._status === 200 && j.ok) { L.done = true; L.id = j.id; return render(); }
+        L.err = j.error === 'too_many' ? 'Заявка уже принята, диспетчер скоро перезвонит. Если срочно — позвоните: +7 (3412) 30-35-55.'
+              : j.error === 'bad_phone' ? 'Проверьте номер телефона.' : 'Не удалось отправить. Позвоните нам: +7 (3412) 30-35-55.';
+        render();
+      }).catch(function (e) { L.busy = false; L.err = e.message; render(); });
+  }
+  function renderLeadScreen() {
+    app.innerHTML = '<div class="screen"><div class="pad">' +
+      leadFormHtml('<button type="button" class="linkbtn" data-lead="back" style="align-self:flex-start">← Назад</button>') + '</div></div>';
+    leadBind(app);
+  }
+
   function render() {
     if (S.stage === 'login') return renderLogin();
     if (S.stage === 'code') return renderCode();
+    if (S.stage === 'lead') return renderLeadScreen();
     renderApp();
   }
 
@@ -324,6 +393,8 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           (S.loginErr ? '<div class="error" role="alert">' + esc(S.loginErr) + '</div>' : '') +
           '<button class="btn btn-primary" type="submit">' + (API ? 'Далее' : 'Получить код по SMS') + '</button>' +
           '<p class="small muted" style="margin:0">Номер лицевого счёта указан в квитанции и в договоре.</p>' +
+          '<div class="connect-card"><b>Ещё не подключены?</b><span class="small muted">Подключим квартиру к домофону или установим домофон в подъезд. Оставьте заявку — перезвоним.</span>' +
+            '<button type="button" class="btn btn-dark" id="go-lead">Заявка на подключение</button></div>' +
           '<h2 class="h2">Тестовые счета</h2>' +
           '<div class="demo-accounts">' +
             Object.keys(ACCOUNTS).map(function (k) {
@@ -344,6 +415,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       if (tel.length < 10) { S.loginErr = 'Введите телефон полностью, 10–11 цифр.'; return render(); }
       S.loginErr = ''; S.stage = 'code'; render();
     });
+    document.getElementById('go-lead').addEventListener('click', function () { leadStart(); S.stage = 'lead'; render(); });
     app.querySelectorAll('.acc-pick').forEach(function (b) {
       b.addEventListener('click', function () {
         document.getElementById('acc').value = b.dataset.acc;
@@ -565,6 +637,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
       '<div class="quick">' +
         '<button data-act="newreq"><span class="ico o">' + ICON.req + '</span>Вызвать мастера</button>' +
         '<button data-act="keys"><span class="ico b">' + ICON.key + '</span>Заказать ключ</button>' +
+        '<button data-act="lead"><span class="ico b">' + ICON.plug + '</span>Подключение</button>' +
         '<button data-act="call"><span class="ico o">' + ICON.phone + '</span>Позвонить</button>' +
       '</div>' +
       (active ? '<section class="card req"><div class="row"><div><div class="t" style="font-weight:800">Заявка ' + active.id + '</div><div class="s muted small">' + esc(active.svc) + '</div></div>' + stepChip(active.step) + '</div>' + stepsBar(active.step) + '<button class="linkbtn" data-tab-go="req" style="align-self:flex-start">Все заявки →</button></section>' : '') +
@@ -722,6 +795,8 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
           settings + (a.real ? rcField() : '') + (f.err ? '<div class="error" role="alert">' + esc(f.err) + '</div>' : '') +
           '<button class="btn btn-primary" data-act="ap-bind">Подключить и оплатить</button>';
       }
+    } else if (S.sheet === 'lead') {
+      inner = leadFormHtml('<div class="sheet-head"><span></span><button class="x" data-lead="close" aria-label="Закрыть">' + ICON.x + '</button></div>');
     } else if (S.sheet === 'call') {
       inner = '<div class="sheet-head"><h2 class="h1" style="font-size:20px">Позвонить</h2><button class="x" data-act="close" aria-label="Закрыть">' + ICON.x + '</button></div>' +
         '<div class="card"><div class="small muted">Диспетчерская</div><div class="num" style="font-size:24px;font-weight:800;font-family:var(--display)">+7 (3412) 30-60-70</div><div class="small muted">пн–пт 09:00–17:00</div></div>' +
@@ -744,6 +819,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
 
   // ---------- events ----------
   function bindApp() {
+    if (S.sheet === 'lead') leadBind(app);
     app.querySelectorAll('[data-tab]').forEach(function (b) { b.addEventListener('click', function () { S.tab = b.dataset.tab; S.sheet = null; render(); }); });
     app.querySelectorAll('[data-tab-go]').forEach(function (b) { b.addEventListener('click', function () { S.tab = b.dataset.tabGo; render(); }); });
     var bell = document.getElementById('bell');
@@ -839,6 +915,7 @@ textarea.input { padding: 12px 14px; min-height: 96px; resize: vertical; }
     }
     if (name === 'close-req') { S.sheet = null; S.tab = 'req'; return render(); }
     if (name === 'call') { S.sheet = 'call'; return render(); }
+    if (name === 'lead') { leadStart(); S.sheet = 'lead'; return render(); }
     if (name === 'autopay') { S.rcDraft = null; S.ap = { step: 'form', day: a.autopay.day, max: a.autopay.max_amount, err: '' }; S.sheet = 'autopay'; return render(); }
     if (name === 'ap-bind') {
       if (!apValid()) return;
